@@ -158,6 +158,7 @@ export default function Home() {
         </Box>
         <Box width={"100%"} display={"flex"} justifyContent={"space-between"}>
           {headers.map((header, index) => (
+            // This is a comment
             <Typography key={index}>{header}</Typography>
           ))}
         </Box>
