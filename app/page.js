@@ -157,8 +157,8 @@ export default function Home() {
           </Typography>
         </Box>
         <Box width={"100%"} display={"flex"} justifyContent={"space-between"}>
-          {headers.map((header) => (
-            <Typography>{header}</Typography>
+          {headers.map((header, index) => (
+            <Typography key={index}>{header}</Typography>
           ))}
         </Box>
         <Stack width="800px" height="500px" spacing={2} overflow={"auto"}>
