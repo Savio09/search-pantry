@@ -120,7 +120,7 @@ export default function Home() {
         >
           <Box sx={style}>
             <Typography id="modal-modal-title" variant="h6" component="h2">
-              Enter the product's name.
+              Enter the product name
             </Typography>
             <Box
               component="form"
