@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Historical root collections remain private. Guests only access their own demo.
+    match /visitors/{userId}/pantry-items/{itemId} {
+      function owner() { return request.auth != null && request.auth.uid == userId; }
+      allow read, delete: if owner();
+      allow create, update: if owner()
+        && request.resource.data.keys().hasOnly(['item', 'quantity'])
+        && request.resource.data.item is string && request.resource.data.item.size() > 0 && request.resource.data.item.size() <= 120 && request.resource.data.quantity is int && request.resource.data.quantity >= 1 && request.resource.data.quantity <= 10000;
+    }
+  }
+}

@@ -8,97 +8,40 @@ import {
   TextField,
 } from "@mui/material";
 import { db } from "@/firebase";
-import { useEffect, useState } from "react";
-import {
-  addDoc,
-  collection,
-  onSnapshot,
-  query,
-  doc,
-  updateDoc,
-  deleteDoc,
-} from "firebase/firestore";
+import { useState } from "react";
+import { addDoc, doc, runTransaction } from "firebase/firestore";
+import useVisitorItems from "./useVisitorItems";
 
 export default function Home() {
   const headers = ["Product Name", "Quantity", "Operations"];
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState(null);
+  const { items, loading, busy, error, mutate } = useVisitorItems("pantry-items");
   const [formData, setFormData] = useState({
     item: "",
   });
 
   const { item } = formData;
-  const handleClose = () => {
-    setOpen(false);
-  };
-
-  const handleOpen = () => {
-    setOpen(true);
-  };
-
-  // Add stuff to the database
-
-  const handleSubmit = async (e) => {
+  const handleClose = () => setOpen(false);
+  const handleOpen = () => setOpen(true);
+  const handleChange = e => setFormData({ item: e.target.value });
+  const handleSubmit = async e => {
     e.preventDefault();
-    if (!item) {
-      return;
+    const value = item.trim();
+    if (!value || value.length > 120) return;
+    if (await mutate(ref => addDoc(ref, { item: value, quantity: 1 }))) {
+      setFormData({ item: "" }); setOpen(false);
     }
-    const newItem = { item, quantity: 1 };
-    await addDoc(collection(db, "pantry-items"), {
-      item: newItem.item,
-      quantity: newItem.quantity,
-    });
-    setFormData({
-      item: "",
-    });
-    setOpen(false);
   };
-
-  const handleChange = (e) => {
-    setFormData((prevState) => ({
-      ...prevState,
-      [e.target.name]: e.target.value,
-    }));
-  };
-
-  // const handleAdd = () => {
-  //   setQuantity((prevState) => prevState + 1);
-  // };
-  // const handleRemove = () => {};
-
-  const handleAdd = async (id, quantity) => {
-    const itemRef = doc(db, "pantry-items", id);
-    await updateDoc(itemRef, {
-      quantity: quantity + 1,
-    });
-  };
-
-  const handleRemove = async (id, quantity) => {
-    const itemRef = doc(db, "pantry-items", id);
-    if (quantity === 1) {
-      return await deleteDoc(itemRef);
-    }
-
-    await updateDoc(itemRef, {
-      quantity: quantity - 1,
-    });
-  };
-
-  useEffect(() => {
-    const q = query(collection(db, "pantry-items"));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      let itemsArr = [];
-      querySnapshot.forEach((doc) =>
-        itemsArr.push({
-          ...doc.data(),
-          id: doc.id,
-        })
-      );
-      console.log(itemsArr);
-      setItems(itemsArr);
-      return () => unsubscribe();
-    });
-  }, []);
+  const changeQuantity = (id, amount) => mutate(ref => runTransaction(db, async transaction => {
+    const itemRef = doc(ref, id);
+    const current = await transaction.get(itemRef);
+    if (!current.exists()) return;
+    const quantity = current.data().quantity + amount;
+    if (quantity < 1) transaction.delete(itemRef);
+    else transaction.update(itemRef, { quantity: Math.min(quantity, 10000) });
+  }));
+  const handleAdd = id => changeQuantity(id, 1);
+  const handleRemove = id => changeQuantity(id, -1);
   return (
     <Box
       width="100vw"
@@ -109,7 +52,7 @@ export default function Home() {
       flexDirection={"column"}
     >
       <>
-        <Button variant="contained" onClick={handleOpen}>
+        <Button variant="contained" disabled={loading || busy} onClick={handleOpen}>
           Add Items
         </Button>
         <Modal
@@ -136,7 +79,7 @@ export default function Home() {
                 onChange={handleChange}
                 name="item"
               />
-              <Button variant="contained" onClick={handleSubmit}>
+              <Button variant="contained" disabled={busy || loading || !item.trim()} onClick={handleSubmit}>
                 Add
               </Button>
             </Box>
@@ -144,8 +87,10 @@ export default function Home() {
         </Modal>
       </>
       <Box>
+        <Typography role="status">{loading ? "Connecting…" : "Your personal demo pantry. Saved in this browser’s guest account."}</Typography>
+        {error && <Typography role="alert" color="error">{error}</Typography>}
         <Box
-          width={"800px"}
+          width={"min(800px, 95vw)"}
           height="100px"
           bgcolor={"lightblue"}
           display={"flex"}
@@ -162,7 +107,7 @@ export default function Home() {
             <Typography key={index}>{header}</Typography>
           ))}
         </Box>
-        <Stack width="800px" height="500px" spacing={2} overflow={"auto"}>
+        <Stack width="min(800px, 95vw)" height="500px" spacing={2} overflow={"auto"}>
           {items &&
             items.map((item) => (
               <Box
@@ -181,14 +126,14 @@ export default function Home() {
                 <Box>
                   <Button
                     variant="contained"
-                    onClick={() => handleAdd(item.id, item.quantity)}
+                    disabled={busy || loading} onClick={() => handleAdd(item.id, item.quantity)}
                   >
                     Add
                   </Button>
                   <Button
                     variant="contained"
                     bgcolor={"red"}
-                    onClick={() => handleRemove(item.id, item.quantity)}
+                    disabled={busy || loading} onClick={() => handleRemove(item.id, item.quantity)}
                     style={{ margin: "0 10px" }}
                   >
                     Remove
@@ -207,7 +152,7 @@ const style = {
   top: "50%",
   left: "50%",
   transform: "translate(-50%, -50%)",
-  width: 400,
+  width: "min(400px, 95vw)",
   bgcolor: "background.paper",
   border: "2px solid #000",
   boxShadow: 24,
